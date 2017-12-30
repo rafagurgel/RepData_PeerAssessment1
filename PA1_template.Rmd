@@ -1,25 +1,150 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "Reproducible Research Project 1"
+author: "Rafael Gurgel"
+date:  "`r format(Sys.time(), '%d %B, %Y')`"
+output: html_document
 ---
 
+```{r setup, include=FALSE}
+suppressPackageStartupMessages({
+    if(!require(knitr)){
+        install.packages("knitr")
+        library(knitr)
+    }
+    if(!require(ggplot2)){
+        install.packages("ggplot2")
+        library(ggplot2)
+    }
+    if(!require(dplyr)){
+        install.packages("dplyr")
+        library(dplyr)
+    }
+})
+Sys.setlocale(category = "LC_ALL", locale = "english")   # Set to show English date format
+opts_chunk$set(echo=TRUE,warning=FALSE,message=FALSE,fig.path="Figs/")
+```
 
-## Loading and preprocessing the data
+## Introduction
+This is the Course Project 1 of the *Reproducible Research* course. It analysis a provided data from a personal activity monitoring device during the months of October and November, 2012.
 
 
+### Reading and processing the data
+The data is provided in a _.zip_ format. It was uncompressed getting the _activity.csv_ file included on [this current GitHub repository](https://github.com/rafagurgel/RepData_PeerAssessment1).
+```{r, echo = TRUE}
+data<-read.table("activity.csv", header=T, sep=",")
+data<-transform(data,date=as.Date(date))
+data.byday<- data %>%
+    group_by(date) %>%
+    summarise(Steps.Total = sum(steps)) %>%
+    select(Date = date, Steps.Total)
 
-## What is mean total number of steps taken per day?
+data.bymin<- data %>%
+    group_by(interval)%>%
+    summarise(Steps.Mean = mean(steps, na.rm = TRUE))%>%
+    select(Interval = interval, Steps.Mean)
+```
 
+### What is mean total number of steps taken per day?
+```{r, echo = TRUE, fig.height = 4, fig.width = 12,fig.align='center'}
+g<- ggplot(data.byday, aes(Steps.Total),na.rm=TRUE)
+g + geom_histogram(color="#222222",fill="steelblue", alpha=0.8) +
+    theme_bw() + 
+    labs(title="Total Steps given by a single day",x ="Steps", y = "Frequency") + 
+    theme(plot.title = element_text(hjust = 0.5))
+# Save figure
+tmp <- dev.copy(png,'figure/histogram_01.png')
+tmp <- dev.off()
 
+# Mean daily steps
+steps.mean <- mean(data.byday$Steps.Total,na.rm=TRUE)
+# Median daily steps
+steps.median <- median(data.byday$Steps.Total,na.rm=TRUE)
+```
+The mean of daily steps is **`r format(steps.mean, scientific=FALSE)`** and the median is **`r format(steps.median, scientific=FALSE)`**.
 
-## What is the average daily activity pattern?
+### What is the average daily activity pattern?
+```{r, echo = TRUE, fig.height = 4, fig.width = 12,fig.align='center'}
+# Get the max point in dataframe
+max.interval<- data.bymin%>%filter(Steps.Mean == max(Steps.Mean))
+g<- ggplot(data.bymin, aes(Interval,Steps.Mean),na.rm=TRUE)
+g + geom_line() +
+    theme_bw() + 
+    scale_y_continuous(breaks = c(0,50,100,150,200,max.interval$Steps.Mean), labels=c(0,50,100,150,200,sprintf("  %.2f",max.interval$Steps.Mean)   )) +
+    scale_x_continuous(breaks = c(0,500,1000,1500,2000,max.interval$Interval), labels=c(0,500,1000,1500,2000,max.interval$Interval)) + 
+    theme(axis.text.y = element_text(colour = c('black', 'black', 'black', 'black', 'black', 'red' )), axis.text.x = element_text(colour = c('black', 'black', 'black', 'black', 'black', 'red' ))) + 
+    geom_vline(xintercept = max.interval$Interval, 'col' = 'red', linetype='dotted') + 
+    geom_hline(yintercept = max.interval$Steps.Mean, 'col' = 'red',linetype='dotted') +
+    geom_point(aes(max.interval$Interval, max.interval$Steps.Mean), col='red') +
+    labs(title="Average steps by day Intervals",x ="Interval", y = "Mean Steps") + 
+    theme(plot.title = element_text(hjust = 0.5))
+# Save figure
+tmp <- dev.copy(png,'figure/timeseries_01.png')
+tmp <- dev.off()
+```
+As we can see, the user has achieved the biggest average steps of **`r format(max.interval$Steps.Mean, scientific=FALSE)`** when has passed **`r format(max.interval$Interval, scientific=FALSE)`** minutes.
 
+### Inputing missing values
 
+```{r,  echo = TRUE}
+nna <- with(data,sum(is.na(steps)))
+```
+There are  **`r format(nna, scientific=FALSE)`** missing values coded as NA. These values will be replaced by the median of the 5-minute interval.
 
-## Imputing missing values
+```{r, echo = TRUE, fig.height = 4, fig.width = 12,fig.align='center'}
+# Get the median by interval
+data.bymin.median<- data %>%
+    group_by(interval)%>%
+    summarise(Steps.Median = median(steps, na.rm = TRUE))%>%
+    select(Interval = interval, Steps.Median)
 
+data.byday2 <- data %>%
+    mutate(Steps= ifelse(is.na(steps),data.bymin.median$Steps.Median, steps))%>%
+    group_by(date) %>%
+    summarise(Steps.Total = sum(Steps)) %>%
+    select(Date = date, Steps.Total)
 
+data.bymin2<- data %>%
+    mutate(Steps= ifelse(is.na(steps),data.bymin.median$Steps.Median, steps))%>%
+    group_by(interval)%>%
+    summarise(Steps.Mean = mean(steps, na.rm = TRUE))%>%
+    select(Interval = interval, Steps.Mean)
+# Histogram
+g<- ggplot(data.byday2, aes(Steps.Total),na.rm=TRUE)
+g + geom_histogram(color="#222222",fill="steelblue", alpha=0.8) +
+    theme_bw() + 
+    labs(title="Total Steps given by a single day",x ="Steps", y = "Frequency") + 
+    theme(plot.title = element_text(hjust = 0.5))
+# Save figure
+tmp <- dev.copy(png,'figure/histogram_02.png')
+tmp <- dev.off()
+# Mean daily steps
+steps.mean2 <- mean(data.byday2$Steps.Total,na.rm=TRUE)
+# Median daily steps
+steps.median2 <- median(data.byday2$Steps.Total,na.rm=TRUE)
+```
+As we can see, the mean and median's values (**`r format(steps.mean2, scientific=FALSE)`** and **`r format(steps.median2, scientific=FALSE)`**) differ than the values calculated before (**`r format(steps.mean, scientific=FALSE)`** and **`r format(steps.median, scientific=FALSE)`**). It is expected considerating the filling strategy adopted.
 
-## Are there differences in activity patterns between weekdays and weekends?
+### Are there differences in activity patterns between weekdays and weekends?
+First we need to create a new factor variable in the dataset indicating whether a given date is a weekday or weekend day. It wasn't informed if the data in this analysis will be the original or with the NA's replacement. I decided to use the original data
+```{r,  echo = TRUE}
+data.bymin.weekdays <- data %>%
+    group_by(date) %>%
+    mutate(Weekday = as.factor(weekdays(date)))%>%
+    mutate(Weekday = ifelse((Weekday == "Saturday")||(Weekday == "Sunday"),"Weekend","Weekday"))%>%
+    mutate(Weekday = as.factor(Weekday))%>%
+    group_by(interval,Weekday)%>%
+    summarise(Steps.Mean = mean(steps, na.rm = TRUE))%>%
+    select(Interval = interval, Weekday,Steps.Mean)
+```
+
+```{r, echo = TRUE, fig.height = 8, fig.width = 12,fig.align='center'}
+g<- ggplot(data.bymin.weekdays, aes(Interval,Steps.Mean),na.rm=TRUE)
+g + geom_line() +
+    theme_bw() + 
+    facet_wrap(~Weekday,ncol = 1) + 
+    labs(title="Average steps by day Intervals",x ="Interval", y = "Mean Steps") + 
+    theme(plot.title = element_text(hjust = 0.5),strip.text = element_text(face="bold", size=14))
+# Save figure
+tmp <- dev.copy(png,'figure/timeseries_02.png')
+tmp <- dev.off()
+```
