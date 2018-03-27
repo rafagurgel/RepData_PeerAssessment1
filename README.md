@@ -1,3 +1,7 @@
+# Report's link
+
+[https://rafagurgel.github.io/RepData_PeerAssessment1/PA1_template.html](https://rafagurgel.github.io/RepData_PeerAssessment1/PA1_template.html)
+
 ## Introduction
 
 It is now possible to collect a large amount of data about personal
